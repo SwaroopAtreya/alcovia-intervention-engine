@@ -1,0 +1,216 @@
+{
+  "name": "Alcovia Mentor Intervention Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "student-intervention",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook - Student Failed",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "student-intervention"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.body.student_id}}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "id": "check-data",
+      "name": "Check Data Valid",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "content": "## 🚨 Student Intervention Required\n\n**Student:** {{$node[\"Webhook - Student Failed\"].json[\"body\"][\"student_name\"]}} ({{$node[\"Webhook - Student Failed\"].json[\"body\"][\"student_id\"]}})\n\n**Performance:**\n- Quiz Score: {{$node[\"Webhook - Student Failed\"].json[\"body\"][\"quiz_score\"]}}/10\n- Focus Time: {{$node[\"Webhook - Student Failed\"].json[\"body\"][\"focus_minutes\"]}} minutes\n\n**Reason:** {{$node[\"Webhook - Student Failed\"].json[\"body\"][\"reason\"]}}\n\n**Action Required:** Please assign a remedial task.\n\n**Approve & Assign Task:**\nClick the link below and add ?task=YOUR_TASK to assign:\n{{$node[\"Wait for Mentor\"].json[\"resumeUrl\"]}}\n\nExample:\n{{$node[\"Wait for Mentor\"].json[\"resumeUrl\"]}}?task=Read Chapter 4 and complete exercises\n\n---\nAlcovia Intervention Engine",
+        "fromEmail": "noreply@n8n.cloud",
+        "toEmail": "your-email@example.com",
+        "subject": "🚨 Intervention Required: {{$node[\"Webhook - Student Failed\"].json[\"body\"][\"student_name\"]}}",
+        "additionalFields": {}
+      },
+      "id": "send-email",
+      "name": "Send Email to Mentor",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "resume": "webhook",
+        "options": {
+          "webhookSuffix": "mentor-response"
+        }
+      },
+      "id": "wait-for-mentor",
+      "name": "Wait for Mentor",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [850, 300],
+      "webhookId": "mentor-response"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "name": "student_id",
+              "value": "={{$node[\"Webhook - Student Failed\"].json[\"body\"][\"student_id\"]}}",
+              "type": "string"
+            },
+            {
+              "name": "task",
+              "value": "={{$json.query.task || \"Read Chapter 4 and complete exercises\"}}",
+              "type": "string"
+            },
+            {
+              "name": "intervention_id",
+              "value": "={{$node[\"Webhook - Student Failed\"].json[\"body\"][\"intervention_id\"]}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "prepare-data",
+      "name": "Prepare Task Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [1050, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.BACKEND_URL}}/api/assign-intervention",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "student_id",
+              "value": "={{$json.student_id}}"
+            },
+            {
+              "name": "task",
+              "value": "={{$json.task}}"
+            },
+            {
+              "name": "intervention_id",
+              "value": "={{$json.intervention_id}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "call-backend",
+      "name": "Call Backend - Assign Task",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1250, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"success\": true, \"message\": \"Task assigned successfully to student {{$node[\"Prepare Task Data\"].json[\"student_id\"]}}\"}",
+        "options": {}
+      },
+      "id": "respond-to-mentor",
+      "name": "Respond to Mentor",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1050, 500]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"success\": true, \"message\": \"Intervention workflow started\"}",
+        "options": {}
+      },
+      "id": "respond-initial",
+      "name": "Respond to Initial Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [650, 500]
+    }
+  ],
+  "connections": {
+    "Webhook - Student Failed": {
+      "main": [
+        [
+          {
+            "node": "Check Data Valid",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Data Valid": {
+      "main": [
+        [
+          {
+            "node": "Send Email to Mentor",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Respond to Initial Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email to Mentor": {
+      "main": [
+        [
+          {
+            "node": "Wait for Mentor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for Mentor": {
+      "main": [
+        [
+          {
+            "node": "Prepare Task Data",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Respond to Mentor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Task Data": {
+      "main": [
+        [
+          {
+            "node": "Call Backend - Assign Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
