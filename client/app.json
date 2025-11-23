@@ -28,7 +28,7 @@
       "bundler": "metro"
     },
     "extra": {
-      "EXPO_PUBLIC_API_URL": "http://localhost:3000"
+      "EXPO_PUBLIC_API_URL": "https://alcovia-backend-xxxx.onrender.com"
     }
   }
 }
